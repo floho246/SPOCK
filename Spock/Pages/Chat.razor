@@ -1,0 +1,102 @@
+﻿@page "/chat"
+@inject LlmService Service
+@inject ISessionStorageService SessionStorage
+@inject NavigationManager NavigationManager
+
+@using Microsoft.Extensions.AI
+@implements IDisposable
+
+<PageTitle>Chat</PageTitle>
+
+<div class="chat-page pb-3">
+    <div class="row align-items-center">
+        <div class="col">
+            <h1 class="mb-3">Chat</h1>
+        </div>
+        <div class="col-auto">
+            <StatusIndicator Loading="_loadingHealth" Error="_connectionError"></StatusIndicator>
+        </div>
+    </div>
+    <div class="ai-chat">
+        <DxAIChat UseStreaming="true" ResponseContentFormat="ResponseContentFormat.Markdown" @ref="AiChat"
+                  CssClass="h-100" MessageSent="SaveMessageHistory">
+            <EmptyMessageAreaTemplate>
+                Noch keine Nachrichten vorhanden.
+            </EmptyMessageAreaTemplate>
+            <MessageContentTemplate>
+                @(new MarkupString(Markdig.Markdown.ToHtml(context.Content).Trim()))
+            </MessageContentTemplate>
+        </DxAIChat>
+    </div>
+    <button class="btn btn-primary" @onclick="() => { AiChat?.LoadMessages([]); SaveMessageHistory(); }">
+        <span class="fas fa-trash pe-1"></span>Chat leeren
+    </button>
+</div>
+
+@code {
+
+    [Parameter]
+    [SupplyParameterFromQuery(Name = "q")]
+    public string? Question { get; set; }
+
+    private DxAIChat? AiChat { get; set; }
+    private bool _loadingHealth;
+    private string? _connectionError;
+
+    protected override void OnInitialized()
+    {
+        NavigationManager.LocationChanged += LocationChanged;
+        base.OnInitialized();
+    }
+
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await base.OnParametersSetAsync();
+        await GetHealth();
+        // query params?
+        if (Question is not null) AiChat?.LoadMessages([new BlazorChatMessage(ChatRole.User, Question)]);
+        // SessionStorage?
+        else if (await SessionStorage.GetItemAsync<IEnumerable<ChatMessage>>("ChatHistory") is { } chatMessages)
+        {
+            AiChat?.LoadMessages(chatMessages.ToBlazorChatMessages());
+        }
+    }
+
+    private async Task GetHealth()
+    {
+        _loadingHealth = true;
+        ModelResponse? response;
+        try
+        {
+            response = await Service.GetModelsAsync();
+        }
+        catch (Exception e)
+        {
+            _connectionError = e.Message;
+            _loadingHealth = false;
+            return;
+        }
+
+        if (!response?.Data.Any() ?? true)
+        {
+            _connectionError = "Verbindungsfehler.";
+        }
+
+        _connectionError = null;
+        _loadingHealth = false;
+    }
+
+    private void SaveMessageHistory()
+    {
+        if (AiChat is not null) SessionStorage.SetItemAsync("ChatHistory", AiChat.SaveMessages().ToChatMessages());
+    }
+
+    void LocationChanged(object? sender, LocationChangedEventArgs e) => SaveMessageHistory();
+
+    public void Dispose()
+    {
+        NavigationManager.LocationChanged -= LocationChanged;
+    }
+
+}

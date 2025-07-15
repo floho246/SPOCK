@@ -1,0 +1,15 @@
+ES_USER=elastic
+ES_PASS=password
+ELASTIC_USERNAME=elastic
+ELASTIC_PASSWORD=password
+ELASTIC_PASSWORD_LOCAL=password
+ELASTICSEARCH_URI=http://localhost:9200
+ELASTIC_HOST_LOCAL=http://localhost:9200
+GROQ_API_KEY=API Key
+JIRA_INDEX=jira
+JIRA_INDEX_LOCAL=jira
+WIKI_INDEX=wiki
+WIKI_INDEX_LOCAL=wiki_v2
+FILES_INDEX=content-network-drive
+MODEL_EMBEDDINGS=distiluse-base-multilingual-cased-v1
+LLM_URL=http://localhost:8080

@@ -1,0 +1,13 @@
+connectors:
+  - connector_id: "bueD8ZYBtBSwrVoc4jfK"  # Jira
+    service_type: "jira"
+  - connector_id: "ceeK8ZYBtBSwrVocpTff"  # Confluence
+    service_type: "confluence"
+  - connector_id: "KRgEppcBnT72VgGZao5c" # Network Drives 
+    service_type: "network_drive"
+ 
+elasticsearch: 
+  host: "http://localhost:9200"
+  api_key: "key"
+  # elasticsearch.username: "elastic"
+  # elasticsearch.password: "kvJc7Qs35*s5XLGn--DK"

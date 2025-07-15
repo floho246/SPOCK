@@ -1,0 +1,43 @@
+<div class="card">
+    @if (JiraResult.Content is not null)
+    {
+        <div class="card-header">
+            <span class="pe-2">
+                <a class="icon-link"
+                   href="@JiraResult.BrowseUrl" target="_blank">
+                    <span class="bi fas fa-globe pe-1"></span>
+                    @JiraResult.Id
+                </a>
+            </span>
+            <span class="px-2 border-start">
+                <img src="@JiraResult.Content.IssueType.IconUrl" alt="Icon" class="pe-1"/>
+                @JiraResult.Content.IssueType.Name
+                </span>
+            <span class="px-2 border-start">
+                @if (JiraResult.Content.Assignee is not null)
+                {
+                    <a class="icon-link"
+                       href="@($"http://jira/secure/ViewProfile.jspa?name={JiraResult.Content.Assignee?.Name}")"
+                       target="_blank">
+                        <span class="bi fas fa-wrench pe-1"></span>
+                        @(JiraResult.Content.Assignee?.DisplayName)
+                    </a>
+                }
+                else
+                {
+                    <span class="bi fas fa-wrench pe-1"></span>
+                    @("Nicht zugewiesen")
+                }
+            </span>
+            <span class="px-2 border-start">@JiraResult.Content.Status.Name</span>
+        </div>
+    }
+    @{ var empty = string.IsNullOrWhiteSpace(JiraResult.Summary); }
+    <div class="card-body @(empty ? "fst-italic" : "")">
+        @((MarkupString)(empty ? "Dieses Element hat keinen anzeigbaren Inhalt." : Markdig.Markdown.ToHtml(JiraResult.Summary!)))
+    </div>
+</div>
+
+@code {
+    [Parameter] public required JiraResult JiraResult { get; init; }
+}

@@ -1,0 +1,96 @@
+.base {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    --footer-height: 3.5rem;
+    --red-line-height: 0.625rem;
+}
+
+
+.malek-red-line {
+    background-color: var(--malek-red);
+    height: var(--red-line-height);
+}
+
+.page {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    height: calc(100% - var(--footer-height) - var(--red-line-height));
+    flex: 0;
+}
+
+main {
+    flex: 1;
+    overflow: auto;
+}
+
+.sidebar {
+    background-image: radial-gradient(circle at top right, var(--malek-fade-light) 0%, var(--malek-fade-dark) 85%);
+}
+
+footer {
+    background-color: var(--footer-bg);
+    justify-content: flex-end;
+    height: var(--footer-height);
+    display: flex;
+    align-items: center;
+    flex: none;
+}
+
+footer ::deep a {
+    white-space: nowrap;
+    margin-left: 1.5rem;
+    text-decoration: none;
+}
+
+footer ::deep a:hover {
+    text-decoration: underline;
+}
+
+footer ::deep a:first-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+@media (max-width: 640.98px) {
+    footer {
+        justify-content: space-between;
+    }
+
+    footer ::deep a, footer ::deep .btn-link {
+        margin-left: 0;
+    }
+}
+
+@media (min-width: 641px) {
+    .page {
+        flex-direction: row;
+    }
+
+    .sidebar {
+        width: 150px;
+        height: 100%;
+        position: sticky;
+        top: 0;
+    }
+
+    footer {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        flex: none;
+    }
+
+    footer.auth ::deep a:first-child {
+        flex: 1;
+        text-align: right;
+        width: 0;
+    }
+
+    footer, article {
+        padding-left: 2rem !important;
+        padding-right: 1.5rem !important;
+    }
+}

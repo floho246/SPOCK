@@ -1,0 +1,12 @@
+::deep input::placeholder {
+    transition: opacity 0.5s ease-in-out;
+}
+
+::deep .fade-placeholder input::placeholder {
+    opacity: 0.1;
+}
+
+::deep .filter-list {
+    height: fit-content;
+    max-height: calc(41px * 5 + 1px); /* magic number Höhe ListItem */
+}

@@ -1,0 +1,4 @@
+::deep .filter-list {
+    height: fit-content;
+    max-height: calc(41px * 5 + 1px); /* magic number Höhe ListItem */
+}

@@ -1,0 +1,248 @@
+@using System.Drawing
+@using Microsoft.AspNetCore.WebUtilities
+@inject IJSRuntime Js
+@inject NavigationManager Navigation
+
+@implements IAsyncDisposable
+
+@if (Results is null && Loading)
+{
+    <div class="row">
+        <div class="col-7">
+            @for (var i = 0; i < ExpectedResultCount; i++)
+            {
+                <div class="card mb-3">
+                    <div class="btn card-header text-bg-primary">
+                        <div class="hstack gap-3 fw-bold align-items-center placeholder-wave">
+                            <span class="ds-5 placeholder placeholder-lg w-100"></span>
+                            @* Platzhalter für Ergebnisse *@
+                        </div>
+                    </div>
+                    <div class="card-body placeholder-wave">
+                        <span class="placeholder w-100"></span>
+                    </div>
+                </div>
+            }
+        </div>
+        <div class="col-5">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title placeholder-wave">
+                        <span class="placeholder placeholder-lg bg-primary w-100"></span>
+                    </h5>
+                    <p class="card-text placeholder-wave">
+                        <span class="placeholder col-7"></span>
+                        <span class="placeholder col-4"></span>
+                        <span class="placeholder col-4"></span>
+                        <span class="placeholder col-6"></span>
+                        <span class="placeholder col-8"></span>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+else if (Results is not null)
+{
+    @if (!Results.Any())
+    {
+        <div class="card border-info mb-3">
+            <div class="card-body">
+                <span class="fal fa-info-circle pe-1"></span>
+                Die Suche hat keine Ergebnisse geliefert.
+            </div>
+        </div>
+    }
+
+    <div class="row">
+        <div class="col-7">
+            @foreach (var result in Results.Where(res => Filter?.Match(res) ?? true))
+            {
+                var bgColor = Styles.GetColor(result.Score, _minScore, _maxScore, _minColor, _maxColor);
+
+                <div class="card mb-3">
+                    <div class="btn card-header text-bg-primary result-header" @onclick="() => OnResultClicked(result)">
+                        <div class="hstack gap-3 fw-bold align-items-center">
+                            <div class="fs-5 d-flex justify-content-start">
+                                <span class="badge" style="background-color: @bgColor">
+                                    @result.Score.ToString("0.0000")
+                                </span>
+                            </div>
+
+                            <div class="fs-5 d-flex justify-content-start">
+                                    <span class="badge text-bg-light">
+                                        <span class="@result.GetIconClassForSourceType()"
+                                              aria-hidden="true"></span>
+                                        @(result.GetNameForSourceType())
+                                    </span>
+                            </div>
+                            <span class="text-white text-truncate">@(result.Title ?? "(Kein Titel)")</span>
+                        </div>
+                    </div>
+                    @{ var empty = string.IsNullOrWhiteSpace(result.Summary); }
+                    <div class="card-body text-truncate @(empty ? "fst-italic" : "")">
+                        @(empty ? "Dieses Element hat keinen anzeigbaren Inhalt." : result.Summary)
+                    </div>
+                </div>
+            }
+        </div>
+
+        @if (Answer is not null || CurrentResult is not null)
+        {
+            <div class="col-5">
+                @if (Answer is not null)
+                {
+                    <DxAccordion AnimationType="LayoutAnimationType.Slide" CssClass="mb-3">
+                        <ItemHeaderTextTemplate>
+                            <span class="fas fa-sparkles pe-1"></span>
+                            Spock sagt:
+                        </ItemHeaderTextTemplate>
+                        <Items>
+                            <DxAccordionItem Expanded="true">
+                                <ContentTemplate>
+                                    <div class="container-fluid py-3">
+                                        @((MarkupString)Markdig.Markdown.ToHtml(Answer))
+                                    </div>
+                                </ContentTemplate>
+                            </DxAccordionItem>
+                        </Items>
+                    </DxAccordion>
+                }
+
+                @if (CurrentResult is not null)
+                {
+                    <div class="card mb-3" id="currentResult">
+                        <div class="card-body">
+                            <h5 class="card-title overflow-hidden">
+                                <a class="icon-link" href="@CurrentResult.BrowseUrl" target="_blank">
+                                    @(CurrentResult.Title ?? "(Kein Titel)")
+                                    <span class="bi fas fa-external-link"></span>
+                                </a>
+                            </h5>
+                            <p class="card-text">
+                                @if (!string.IsNullOrWhiteSpace(CurrentResult.Creator))
+                                {
+                                    <span class="fas fa-lightbulb pe-1"></span>
+                                    @CurrentResult.Creator
+                                }
+                                @if (!string.IsNullOrWhiteSpace(CurrentResult.Creator) && CurrentResult.Created is not null)
+                                {
+                                <div class="vr mx-2"></div>
+                            }
+                            @if (CurrentResult.Created is { } dt)
+                            {
+                                <span class="fas fa-calendar-plus pe-1"></span>
+                                @dt.ToShortDateString()
+                            }
+                            </p>
+                        </div>
+                        <ul class="list-group list-group-flush">
+                            <li class="list-group-item">
+                                <button class="btn btn-primary" @onclick="AskSpock">
+                                    <span class="fas fa-comment-alt-plus me-2"></span>
+                                    Spock fragen
+                                </button>
+                            </li>
+                        </ul>
+                        <div class="card-body">
+                            @switch (CurrentResult)
+                            {
+                                case JiraResult jiraResult:
+                                    <JiraResultDisplay JiraResult="jiraResult"></JiraResultDisplay>
+                                    break;
+                                case FileResult fileResult:
+                                    <FileResultDisplay FileResult="fileResult"></FileResultDisplay>
+                                    break;
+                                default:
+                                {
+                                    var empty = string.IsNullOrWhiteSpace(CurrentResult.Summary);
+                                    <div class="card">
+                                        <div class="card-body @(empty ? "fst-italic" : "")">
+                                            @((MarkupString)(empty ? "Dieses Element hat keinen anzeigbaren Inhalt." : Markdig.Markdown.ToHtml(CurrentResult.Summary)))
+                                        </div>
+                                    </div>
+                                    break;
+                                }
+                            }
+                        </div>
+                    </div>
+                }
+
+            </div>
+        }
+    </div>
+}
+
+@code {
+
+    [Parameter] public IEnumerable<SearchResult>? Results { get; set; }
+
+    [Parameter] public string? Answer { get; set; }
+
+    [Parameter] public bool Loading { get; set; }
+
+    [Parameter] public int? ExpectedResultCount { get; set; } = 10;
+
+    [Parameter] public FilterModel? Filter { get; set; }
+
+    private SearchResult? CurrentResult { get; set; }
+
+    // todo: absolute Werte für den Score
+    private float _minScore;
+    private float _maxScore;
+    private readonly Color _minColor = Color.FromArgb(181, 8, 0);
+    private readonly Color _maxColor = Color.FromArgb(5, 183, 37);
+    private IEnumerable<SearchResult>? _previousResults;
+    private IJSObjectReference? _module;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender) _module = await Js.InvokeAsync<IJSObjectReference>("import", "./js/scrollHelper.js");
+    }
+
+    protected override void OnParametersSet()
+    {
+        base.OnParametersSet();
+
+        // OnParametersSet wird oft gerufen, auch wenn sich nichts ändert → shortcut
+        if (_previousResults.NullableSequenceEqual(Results)) return;
+        UpdateScores();
+        CurrentResult = Results?.FirstOrDefault();
+        _previousResults = Results;
+    }
+
+    private void UpdateScores()
+    {
+        if (Results is null || !Results.Any()) return;
+        _minScore = Results.Min(i => i.Score);
+        _maxScore = Results.Max(i => i.Score);
+    }
+
+    private async Task OnResultClicked(SearchResult result)
+    {
+        CurrentResult = result;
+        await ScrollToId("currentResult");
+    }
+
+    // das kann eventuell in eine eigene Komponente
+    private async Task ScrollToId(string id)
+    {
+        if (_module is not null) await _module.InvokeVoidAsync("scrollToElement", id);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_module != null) await _module.DisposeAsync();
+    }
+
+    private void AskSpock()
+    {
+        var queryParam = new Dictionary<string, string?>
+        {
+            // hier würde dann ein umfassender Systemprompt mit gebildet werden
+            ["q"] = CurrentResult?.Summary
+        };
+        Navigation.NavigateTo(QueryHelpers.AddQueryString("/chat", queryParam));
+    }
+
+}

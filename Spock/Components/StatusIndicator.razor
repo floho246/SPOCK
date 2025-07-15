@@ -1,0 +1,24 @@
+Status:
+@if (Loading)
+{
+    <div class="spinner-grow spinner-grow-sm text-primary" role="status">
+        <span class="visually-hidden">Verbinde...</span>
+    </div>
+}
+else if (Error is null)
+{
+    <div class="badge bg-success">
+        Ok
+    </div>
+}
+else
+{
+    <div class="badge bg-danger">
+        Fehler
+    </div>
+}
+
+@code { 
+    [Parameter] public required bool Loading { get; set; }
+    [Parameter] public object? Error { get; set; }
+}

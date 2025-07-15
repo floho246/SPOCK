@@ -1,0 +1,42 @@
+﻿@inherits LayoutComponentBase
+@inject Task<VersionInfo> VersionTask
+
+<div class="base">
+    <div class="malek-red-line"></div>
+    <div class="page">
+        <div class="sidebar">
+            <NavMenu/>
+        </div>
+
+        <main>
+            <article class="pt-3 px-4 h-100">
+                @Body
+            </article>
+        </main>
+    </div>
+    <footer class="mt-auto px-4">
+        @if (_version is not null)
+        {
+            <a href="@_version.Uri" target="_blank" class="link-light icon-link">
+                @_version.Revision <span class="bi fas fa-code-merge"></span>
+            </a>
+        }
+        <a href="http://wiki/display/M3/Konzept%3A+SPOCK+-+Smart+Processing+Of+Corporate+Knowlegde" target="_blank"
+           class="link-light icon-link">
+            Über Spock <span class="bi fas fa-hand-spock"></span>
+        </a>
+        <a href="http://jira/browse/IT-293" target="_blank" class="link-light icon-link">
+            Feedback, Probleme? <span class="bi fas fa-megaphone"></span>
+        </a>
+    </footer>
+</div>
+
+@code {
+    private VersionInfo? _version;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _version = await VersionTask;
+    }
+
+}

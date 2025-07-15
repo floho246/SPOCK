@@ -1,0 +1,16 @@
+<div class="card">
+    <div class="card-header">
+            <span class="pe-2">
+                <span class="fas fa-sd-card pe-1"></span>
+                @FileResult.SizeBytes Bytes
+            </span>
+    </div>
+    @{ var empty = string.IsNullOrWhiteSpace(FileResult.Summary); }
+    <div class="card-body @(empty ? "fst-italic" : "")">
+        @(empty ? "Dieses Element hat keinen anzeigbaren Inhalt." : FileResult.Summary!)
+    </div>
+</div>
+
+@code {
+    [Parameter] public required FileResult FileResult { get; init; }
+}

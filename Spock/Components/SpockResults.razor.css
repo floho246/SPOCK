@@ -1,0 +1,10 @@
+.filter-list {
+    max-height: calc(41px * 5 + 1px); /* magic number Höhe ListItem */
+}
+
+.result-header:hover {
+    background-color: var(--
+        
+        
+        -blue-400) !important;
+}

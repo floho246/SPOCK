@@ -1,0 +1,11 @@
+.ai-chat {
+    /* nicht hinterfragen */
+    height: 1px;
+    flex-grow: 1;
+}
+
+.chat-page {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}

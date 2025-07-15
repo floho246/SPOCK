@@ -1,0 +1,334 @@
+﻿@page "/search"
+@inject SpockApiService Service
+@implements IDisposable
+
+@inherits SearchQueryPage
+
+<PageTitle>Suche</PageTitle>
+
+<div class="row align-items-center">
+    <div class="col">
+        <h1 class="mb-3">Suche</h1>
+    </div>
+    <div class="col-auto">
+        <StatusIndicator Loading="_loadingHealth" Error="_connectionError"></StatusIndicator>
+    </div>
+</div>
+
+@if (_connectionError is not null)
+{
+    <div class="alert alert-danger d-flex justify-content-between align-content-center" role="alert">
+        @_connectionError
+        <button class="btn btn-primary float-end"
+                @onclick="async () => await Task.WhenAll(GetHealth(), GetAvailableSources())">
+            Erneut verbinden
+            @if (_loadingSources)
+            {
+                <span class="spinner-border spinner-border-sm" role="status"></span>
+            }
+        </button>
+    </div>
+}
+<EditForm EditContext="_editContext" OnValidSubmit="@DoSearch">
+    <fieldset disabled="@(_connectionError is not null)">
+        <div class="row mb-3">
+            <div class="col">
+                <div class="input-group">
+                    <DxSearchBox @bind-Text="@SearchRequest.Query"
+                                 ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
+                                 CssClass=@("form-control d-flex " + (_fade ? " fade-placeholder" : ""))
+                                 aria-label="Suchbegriff"
+                                 NullText="@_currentPlaceholder"
+                                 @ref="_searchInput"/>
+                    <button class="btn btn-primary" type="submit" disabled="@_loadingResults">Suchen</button>
+                </div>
+            </div>
+            @if (_loadingResults)
+            {
+                <div class="col-auto">
+                    @* Das hier crasht den Debugger, funktioniert aber normal *@
+                    <button class="btn btn-danger text-nowrap h-100"
+                            @onclick="() => _cancellationTokenSource?.Cancel()">
+                        <span class="fas fa-times-octagon me-md-2"></span><span class="d-none d-md-inline">Suche Abbrechen</span>
+                    </button>
+                </div>
+            }
+        </div>
+        <DxAccordion AnimationType="LayoutAnimationType.Slide" CssClass="mb-3">
+            <ItemHeaderTextTemplate Context="_">
+                <span class="fas fa-sliders-h pe-1"></span>
+                Erweitert
+            </ItemHeaderTextTemplate>
+            <Items>
+                <DxAccordionItem>
+                    @* see https://docs.devexpress.com/Blazor/403276/troubleshooting/common-component-issues/the-child-content-element-uses-the-same-parameter-name *@
+                    <ContentTemplate Context="_">
+                        <div class="container-fluid py-3">
+                            <div class="row row-cols-sm-3">
+                                <div>
+                                    <label for="searchType" class="form-label">Suchtyp: </label>
+                                    <InputSelect @bind-Value="@SearchRequest.SearchType" id="searchType"
+                                                 class="form-select mb-3">
+                                        @foreach (var searchType in Enum.GetValues(typeof(SearchType)))
+                                        {
+                                            <option value="@searchType">@searchType</option>
+                                        }
+                                    </InputSelect>
+                                    <div class="form-check form-switch">
+                                        <label for="enableGenerative" class="form-check-label">KI-Antwort</label>
+                                        <InputCheckbox @bind-Value="@SearchRequest.EnableGenerative"
+                                                       id="enableGenerative"
+                                                       class="form-check-input">
+                                        </InputCheckbox>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label for="sources" class="form-label">Quellen: </label>
+                                    <DxListBox Data="@_availableSources"
+                                               TextFieldName="@nameof(SourceInfo.Name)"
+                                               SelectionMode="ListBoxSelectionMode.Multiple"
+                                               ShowCheckboxes="true"
+                                               CssClass="filter-list text-capitalize"
+                                               ShowSelectAllCheckbox="true"
+                                               @bind-Values="@SearchRequest.Sources"
+                                               Id="sources"
+                                               ValueFieldName="@nameof(SourceInfo.Name)">
+                                    </DxListBox>
+                                    <ValidationMessage For="@(() => SearchRequest.Sources)"/>
+                                </div>
+                                <div>
+                                    <label for="top-k" class="form-label">Ergebnisse pro Quelle: </label>
+                                    <InputNumber @bind-Value="SearchRequest.TopK" id="top-k" class="form-control"/>
+                                </div>
+                            </div>
+                        </div>
+                    </ContentTemplate>
+                </DxAccordionItem>
+            </Items>
+        </DxAccordion>
+    </fieldset>
+</EditForm>
+
+@if (_searchError is not null)
+{
+    <div class="alert alert-danger d-flex justify-content-between align-content-center" role="alert">
+        @_searchError
+        <button class="btn btn-primary float-end" @onclick="DoSearch">
+            Erneut versuchen
+            @if (_loadingResults)
+            {
+                <span class="spinner-border spinner-border-sm" role="status"></span>
+            }
+        </button>
+    </div>
+}
+<SpockFilters Results="CurrentResults" @bind-Filters="_currentFilter"></SpockFilters>
+<SpockResults Results="CurrentResults"
+              Loading="_loadingResults"
+              Answer="@_searchResponse?.Answer"
+              ExpectedResultCount="SearchRequest.TopK * SearchRequest.Sources.Count()"
+              Filter="_currentFilter">
+</SpockResults>
+
+@code {
+    private EditContext? _editContext;
+
+    private ValidationMessageStore? _messageStore;
+
+    // todo in API schon sortieren
+    private IOrderedEnumerable<SearchResult>? CurrentResults => _searchResponse?.Results.OrderByDescending(result => result.Score);
+    private bool _loadingResults;
+    private bool _loadingSources;
+    private bool _loadingHealth;
+    private string? _connectionError;
+    private string? _searchError;
+    private List<SourceInfo> _availableSources = [];
+    private DxSearchBox? _searchInput;
+    private Queue<string> _placeholderQueue = new();
+    private string _currentPlaceholder = "Suchbegriff eingeben...";
+    private Timer? _timer;
+    private bool _fade;
+    private readonly Random _rng = new();
+    private FilterModel _currentFilter = new();
+    private CancellationTokenSource? _cancellationTokenSource;
+    private SearchResponse? _searchResponse;
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        _editContext = new EditContext(SearchRequest);
+        _editContext.OnValidationRequested += HandleValidationRequested;
+        _editContext.OnFieldChanged += SaveSearchToSessionStorage;
+        _messageStore = new ValidationMessageStore(_editContext);
+
+        // Alle 8 Sekunden placeholder ändern
+        RefillShuffledPlaceholders();
+        _timer = new Timer(_ => ChangePlaceholder(), null, 8000, 8000);
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // erst selber schauen welche Quellen da sind
+        await Task.WhenAll(GetHealth(), GetAvailableSources());
+        // vorgeschlagene auswählen
+        SearchRequest.Sources = _availableSources.Where(source => SearchStatics.SuggestedSources.Contains(source.Name)).Select(sourceInfo => sourceInfo.Name);
+        // dann aus Query Params setzen
+        await base.OnParametersSetAsync();
+        // wenn Query Params vorhanden, direkt suchen
+        if (HasValidQueryParams) await DoSearch();
+        // sonst aus sessionStorage Ergebnisse anzeigen, wenn vorhanden
+        else if (await SessionStorage.GetItemAsync<SearchResponse>("SearchResponse") is { } searchResponse)
+        {
+            _searchResponse = searchResponse;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_searchInput != null && firstRender)
+        {
+            await _searchInput.FocusAsync();
+        }
+    }
+
+    private async Task<bool> GetHealth()
+    {
+        _loadingHealth = true;
+        HealthResponse? response;
+        try
+        {
+            response = await Service.GetHealthAsync();
+        }
+        catch (Exception e)
+        {
+            _connectionError = e.Message;
+            _loadingHealth = false;
+            return false;
+        }
+
+        if (response?.Status is not "ok")
+        {
+            _connectionError = response?.Status ?? "Verbindungsfehler.";
+        }
+
+        _connectionError = null;
+        _loadingHealth = false;
+        return true;
+    }
+
+    private async Task<bool> GetAvailableSources()
+    {
+        _loadingSources = true;
+        SourcesResponse? response;
+        try
+        {
+            response = await Service.GetSourcesAsync();
+        }
+        catch (Exception e)
+        {
+            _connectionError = e.Message;
+            _loadingSources = false;
+            return false;
+        }
+
+        if (response is null || response.Sources.Count == 0)
+        {
+            _connectionError = "Keine Quellen verfügbar.";
+            _loadingSources = false;
+            return false;
+        }
+
+        _availableSources = response.Sources;
+        _connectionError = null;
+        _loadingSources = false;
+        return true;
+    }
+
+    private void HandleValidationRequested(object? sender, ValidationRequestedEventArgs args)
+    {
+        _messageStore?.Clear();
+
+        if (!SearchRequest.Sources.Any())
+        {
+            _messageStore?.Add(() => SearchRequest.Sources, "Mindestens eine Quelle muss ausgewählt werden.");
+        }
+    }
+
+    private async void SaveSearchToSessionStorage(object? sender, FieldChangedEventArgs e)
+    {
+        await SessionStorage.SetItemAsync("SearchRequest", SearchRequest);
+    }
+
+    private async Task DoSearch()
+    {
+        if (_loadingResults) return;
+
+        _cancellationTokenSource?.Dispose();
+        _cancellationTokenSource = new CancellationTokenSource();
+
+        _loadingResults = true;
+        _searchResponse = null;
+
+        if (string.IsNullOrWhiteSpace(SearchRequest.Query)) SearchRequest.Query = _currentPlaceholder;
+
+        UpdateUrlFromSearchRequest();
+
+        try
+        {
+            _searchResponse = await Service.SearchAsync(SearchRequest, _cancellationTokenSource.Token);
+        }
+        catch (TaskCanceledException)
+        {
+            _loadingResults = false;
+            return;
+        }
+        catch (Exception e)
+        {
+            _searchError = e.Message;
+            _loadingResults = false;
+            return;
+        }
+
+        _searchError = null;
+        _loadingResults = false;
+        await SessionStorage.SetItemAsync("SearchResponse", _searchResponse);
+    }
+
+    public void Dispose()
+    {
+        if (_editContext is not null)
+        {
+            _editContext.OnValidationRequested -= HandleValidationRequested;
+            _editContext.OnFieldChanged -= SaveSearchToSessionStorage;
+        }
+
+        _cancellationTokenSource?.Cancel();
+        _cancellationTokenSource?.Dispose();
+        _timer?.Dispose();
+    }
+
+    private void RefillShuffledPlaceholders()
+    {
+        var shuffled = SearchStatics.Placeholders
+            .OrderBy(_ => _rng.Next())
+            .ToList();
+
+        _placeholderQueue = new Queue<string>(shuffled);
+    }
+
+    // ReSharper disable once AsyncVoidMethod
+    private async void ChangePlaceholder()
+    {
+        _fade = true;
+        await InvokeAsync(StateHasChanged);
+
+        await Task.Delay(500); // Fade Animation
+
+        if (_placeholderQueue.Count == 0) RefillShuffledPlaceholders();
+        _currentPlaceholder = _placeholderQueue.Dequeue();
+
+        _fade = false;
+        await InvokeAsync(StateHasChanged);
+    }
+
+}

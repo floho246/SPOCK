@@ -1,0 +1,148 @@
+@using DevExpress.Blazor.Internal
+@if (Results is not null)
+{
+    <DxAccordion AnimationType="LayoutAnimationType.Slide" CssClass="mb-3">
+        <ItemHeaderTextTemplate>
+            <span class="fas fa-filter pe-1"></span>
+            Ergebnisse filtern
+        </ItemHeaderTextTemplate>
+        <Items>
+            <DxAccordionItem>
+                @* see https://docs.devexpress.com/Blazor/403276/troubleshooting/common-component-issues/the-child-content-element-uses-the-same-parameter-name *@
+                <ContentTemplate>
+                    <div class="container-fluid py-3">
+                        <div class="row">
+                                <div class="col">
+                                    <h5>
+                                        <span class="fas fa-database pe-1"></span>
+                                        Quelle
+                                    </h5>
+                                    <DxListBox Data="@_sources"
+                                               TextFieldName="@nameof(FilterItem<string>.Value)"
+                                               SelectionMode="ListBoxSelectionMode.Multiple"
+                                               ShowCheckboxes="true"
+                                               TData="FilterItem<string>"
+                                               TValue="string"
+                                               CssClass="filter-list"
+                                               @bind-Values="@Filters.SelectedSources"
+                                               @bind-Values:after="OnFiltersChanged"
+                                               Id="sources">
+                                        <ItemDisplayTemplate Context="itemDisplayContext">
+                                            <div
+                                                class="d-flex justify-content-between align-items-center text-capitalize">
+                                                @itemDisplayContext.DisplayText
+                                                <span
+                                                    class="badge bg-primary rounded-pill">@itemDisplayContext.DataItem.Count</span>
+                                            </div>
+                                        </ItemDisplayTemplate>
+                                    </DxListBox>
+                                </div>
+                            @if (_names.Any())
+                            {
+                                <div class="col">
+                                    <h5>
+                                        <span class="fas fa-lightbulb pe-1"></span>
+                                        Ersteller
+                                    </h5>
+                                    <DxListBox Data="@_names"
+                                               TextFieldName="@nameof(FilterItem<string>.Value)"
+                                               SelectionMode="ListBoxSelectionMode.Multiple"
+                                               ShowCheckboxes="true"
+                                               TData="FilterItem<string>"
+                                               TValue="string"
+                                               CssClass="filter-list"
+                                               @bind-Values="@Filters.SelectedNames"
+                                               @bind-Values:after="OnFiltersChanged"
+                                               Id="sources">
+                                        <ItemDisplayTemplate Context="itemDisplayContext">
+                                            <div
+                                                class="d-flex justify-content-between align-items-center text-capitalize">
+                                                @itemDisplayContext.DisplayText
+                                                <span
+                                                    class="badge bg-primary rounded-pill">@itemDisplayContext.DataItem.Count</span>
+                                            </div>
+                                        </ItemDisplayTemplate>
+                                    </DxListBox>
+                                </div>
+                            }
+                            @if (_start is not null && _end is not null)
+                            {
+                                <div class="col">
+                                    <h5>
+                                        <span class="fas fa-calendar-plus pe-1"></span>
+                                        Erstelldatum
+                                    </h5>
+                                    <div class="row mb-3">
+                                        <div class="col-lg">
+                                            <DxDateEdit @bind-Date="@Filters.Start"
+                                                        @bind-Date:after="OnFiltersChanged"
+                                                        MinDate="@_start.Value.ToDateTime(TimeOnly.MinValue)"
+                                                        MaxDate="@_end.Value.ToDateTime(TimeOnly.MinValue)"
+                                                        ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
+                                                        NullText="Startdatum auswählen"/>
+                                        </div>
+                                        <div class="col-lg">
+                                            <DxDateEdit @bind-Date="@Filters.End"
+                                                        @bind-Date:after="OnFiltersChanged"
+                                                        MinDate="@_start.Value.ToDateTime(TimeOnly.MinValue)"
+                                                        MaxDate="@_end.Value.ToDateTime(TimeOnly.MinValue)"
+                                                        ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
+                                                        NullText="Enddatum auswählen"/>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </ContentTemplate>
+            </DxAccordionItem>
+        </Items>
+    </DxAccordion>
+}
+
+@code {
+    [Parameter] public IEnumerable<SearchResult>? Results { get; set; }
+    [Parameter] public EventCallback<FilterModel> FiltersChanged { get; set; }
+    [Parameter] public required FilterModel Filters { get; set; }
+
+    private List<FilterItem<string>> _names = [];
+    private List<FilterItem<string>> _sources = [];
+    private DateOnly? _start;
+    private DateOnly? _end;
+    private IEnumerable<SearchResult>? _previousResults;
+
+    protected override void OnParametersSet()
+    {
+        base.OnParametersSet();
+        if (Results.NullableSequenceEqual(_previousResults)) return;
+        UpdateFilters();
+        _previousResults = Results;
+    }
+
+    private void UpdateFilters()
+    {
+        _names = (from res in Results ?? []
+                where !string.IsNullOrWhiteSpace(res.Creator)
+                group res by res.Creator
+                into g
+                orderby g.Count() descending
+                select new FilterItem<string> { Value = g.Key, Count = g.Count() })
+            .ToList();
+        
+        _sources = (from res in Results ?? []
+                group res by res.GetNameForSourceType()
+                into g
+                orderby g.Count() descending
+                select new FilterItem<string> { Value = g.Key, Count = g.Count() })
+            .ToList();
+
+        _start = Results?.MinOrDefault(res => res.Created);
+        _end = Results?.MaxOrDefault(res => res.Created);
+    }
+
+    private async Task OnFiltersChanged()
+    {
+        await FiltersChanged.InvokeAsync(Filters);
+    }
+
+}
